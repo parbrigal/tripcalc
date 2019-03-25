@@ -169,8 +169,9 @@
             <input id='distance-destination' type='hidden' class='controls' placeholder='Estimated Distance'>
             <input id='estimated-time' type='hidden'> <input id='origin-lat' type='hidden'> <input id='origin-lng'
                 type='hidden'>
-            <input id='destination-lat' type='hidden'> <input id='destination-lng' type='hidden'> <input
-                id='place_id_origin' type='hidden'>
+            <input id='destination-lat' type='hidden'> <input id='destination-lng' type='hidden'> 
+            <input id='place_id_origin' type='hidden'>
+            <input id='previous_id_origin' type='hidden'>
             <input id='place_id_destination' type='hidden'>
             <input id='place_id_favourite' type='hidden'>
         </div>
@@ -187,12 +188,71 @@
     var directionsDisplay = null;
     var distanceService = null;
 
-
+    var wayPts = [];
+    var wayPtsPlaceIds = [];
+    var wayPtsTotalKm = [];
     var boxFoxus = '';
 
-    function dingDong() {
-        alert("Ding dong");
-    }
+    var previousCalculation = 0;
+
+  route = function () {
+                if (originPlaceId && destinationPlaceId) {
+                        if (wayPtsPlaceIds.length === 0) {
+                            e = originPlaceId;
+                        }
+                        else {
+                            e = wayPtsPlaceIds[wayPtsPlaceIds.length-1];
+                        }
+
+                    document.getElementById("place_id_origin").value = e;
+                    var t = destinationPlaceId,
+                        n = {
+                            placeId: "" + e
+                        },
+                        a = {
+                            placeId: "" + (document.getElementById("place_id_destination").value = t)
+                        };
+                    distanceService.getDistanceMatrix({
+                        origins: [n],
+                        destinations: [a],
+                        travelMode: "DRIVING",
+                        unitSystem: google.maps.UnitSystem.METRIC,
+                        avoidHighways: !1,
+                        avoidTolls: !1
+                    }, function (e, t) {
+                            if ("OK" !== t) alert("No results returned : " + t + ". The claim can still be saved by manually overriding the value");
+                            else {
+                                e.originAddresses, e.destinationAddresses;
+                                var i = e.rows[0].elements,
+                                    n = document.getElementById("estimated-time");
+
+                                previousCalculation = i[0].distance.value * .001;
+
+                                var total = 0;
+
+                                 for (var idx = 0; idx < wayPtsTotalKm.length; idx++) {
+                                    console.log("added : " + wayPtsTotalKm[idx]);
+                                    total += wayPtsTotalKm[idx];
+                                }
+                                document.getElementById("distance-destination").value = (total + i[0].distance.value * .001).toFixed(4) + " km", n.value = i[0].duration.text, document.getElementById("estimated-distance-label").innerText = "Estimated Distance : " + (total + i[0].distance.value * .001).toFixed(4) + " km"
+                            }
+                        }), directionsService.route({
+                            origin: {
+                                placeId: originPlaceId
+                            },
+                            destination: {
+                                placeId: destinationPlaceId
+                            },
+                            travelMode: "DRIVING",
+                            waypoints: wayPts,
+                            //By default, the Directions service calculates a route through the provided waypoints in their given order. Optionally, you may pass optimizeWaypoints: true within the DirectionsRequest to allow the Directions service to optimize the provided route by rearranging the waypoints in a more efficient order.
+                            optimizeWaypoints: false
+                        }, function (e, t) {
+                            "OK" === t ? directionsDisplay.setDirections(e) : window.alert("Google Directions request failed due to " + t + ".The record can still be saved by overriding the value of the travel claim")
+                        })
+                }
+            };
+       
 
     function sendMessage(changedPlaceId,changedPlaceName) { 
 
@@ -204,9 +264,8 @@
     if (boxFocus === "DEST") {
          destinationPlaceId = changedPlaceId;
             document.getElementById('destination-input').value = changedPlaceName;
-
-        //document.getElementById('destination-input')
-        } 
+        }
+     route(); 
     };
 
     function identifyOrigin() {
@@ -240,22 +299,25 @@
     directionsDisplay.setMap(map);
     distanceService = new google.maps.DistanceMatrixService;
 
-    var wayPts = [];
+   
 
     var favourites = [
         {
             name : "Home",
             desc : "This is your home",
+            address : "91 Edison Street, Wendywood, Sandton",
             place_id : "ChIJs0s0y8ZylR4R-g9oNha0hsw"
         },
         {
             name: "Work",
             desc : "This is your work",
+            address : "33 Brewery Street, Kempton Park",
             place_id: "ChIJabDUBokTlR4RgN5Z3hoQBVc"
         },
         {
             name:"PSIber",
             desc : "This is PSIber",
+            address : "33 Brewery Street, Kempton Park",
             place_id:"ChIJabDUBokTlR4RgN5Z3hoQBVc"
         }
 ]
@@ -281,12 +343,8 @@
        google.maps.event.addListener(searchBoxDest, 'place_changed', function() {
            setupPlaceChangeListener(searchBoxDest,'DEST');
        });
-
-       google.maps.event.addListener(searchBoxOrigin, 'click', function(event) {
-            alert('You clicked me!')
-       });
-
        var addBtn = document.getElementById("greed");
+
        addBtn.addEventListener("click", function () {
                 if (dest.value === "") {
                     window.alert("Please select an option from the dropdown list.")
@@ -310,15 +368,17 @@
                         stopover : true
                     });
 
+                    var addWayPtPlaceId = destinationPlaceId;
+                    wayPtsPlaceIds.push(addWayPtPlaceId);
+
+                    wayPtsTotalKm.push(previousCalculation);
+
                     dest.value = "";
                 }
             });
 
 
        function setupPlaceChangeListener(comp,sBoxType) {
-
-        console.log(originPlaceId);
-        console.log(destinationPlaceId);
         // var places = searchBox.getPlace();   
         // // For each place, get the icon, place name, and location.
         // var bounds = new google.maps.LatLngBounds();
@@ -347,10 +407,9 @@
                     
                     //s.originPlaceId = document.getElementById('place_id_favourite').value;
                 }
-                if (!destinationPlaceId)
                     destinationPlaceId = place.place_id;
 
-                console.log(destinationPlaceId);  
+                console.log("new dest" + destinationPlaceId);  
                 var destinationLat = document.getElementById("destination-lat");
                 var destinationLng = document.getElementById("destination-lng");
                 d.geocode({
@@ -369,48 +428,7 @@
         }
        }
 
-      let route = function () {
-                if (originPlaceId && destinationPlaceId) {
-                        e = originPlaceId,
-                        t = destinationPlaceId
-                    document.getElementById("place_id_origin").value = e;
-                        n = {
-                            placeId: "" + e
-                        },
-                        a = {
-                            placeId: "" + t
-                        };
-                    distanceService.getDistanceMatrix({
-                        origins: [n],
-                        destinations: [a],
-                        travelMode: "DRIVING",
-                        unitSystem: google.maps.UnitSystem.METRIC,
-                        avoidHighways: !1,
-                        avoidTolls: !1
-                    }, function (e, t) {
-                            if ("OK" !== t) alert("No results returned : " + t + ". The claim can still be saved by manually overriding the value");
-                            else {
-                                e.originAddresses, e.destinationAddresses;
-                                var i = e.rows[0].elements,
-                                    n = document.getElementById("estimated-time");
-                                document.getElementById("distance-destination").value = (i[0].distance.value * .001).toFixed(4) + " km", n.value = i[0].duration.text, document.getElementById("estimated-distance-label").innerText = "Estimated Distance : " + (i[0].distance.value * .001).toFixed(4) + " km"
-                            }
-                        }), directionsService.route({
-                            origin: {
-                                placeId: originPlaceId
-                            },
-                            destination: {
-                                placeId: destinationPlaceId
-                            },
-                            travelMode: "DRIVING",
-                            waypoints: wayPts,
-                            //By default, the Directions service calculates a route through the provided waypoints in their given order. Optionally, you may pass optimizeWaypoints: true within the DirectionsRequest to allow the Directions service to optimize the provided route by rearranging the waypoints in a more efficient order.
-                            optimizeWaypoints: false
-                        }, function (e, t) {
-                            "OK" === t ? directionsDisplay.setDirections(e) : window.alert("Google Directions request failed due to " + t + ".The record can still be saved by overriding the value of the travel claim")
-                        })
-                }
-            };
+      
 
       
 
@@ -420,9 +438,8 @@
 
                 
             var fnp = `\'${item.place_id}\'`; 
-            var fnpp = `\'${item.name}\'`; 
-            console.log($('.pac-container'));
-            $(".pac-container").append('<div id="areasearch" class="pac-item areasearch" onmousedown="sendMessage('+ fnp +',' + fnpp +');"><span class="pac-icon pac-icon-areas"></span><span class="pac-item-query"><span class="pac-matched"></span>' + item.name + '</span><span>' + item.desc + '</span></div>');
+            var fnpp = `\'${item.address}\'`; 
+            $(".pac-container").append('<div id="areasearch" class="pac-item areasearch" onmousedown="sendMessage('+ fnp +',' + fnpp +');"><span class="pac-icon pac-icon-areas"></span><span class="pac-item-query"><span class="pac-matched"></span>' + item.name + '</span><span>' + item.address + '</span></div>');
         })  
     }, 500);
        
